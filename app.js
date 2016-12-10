@@ -13,8 +13,10 @@ window.onload = function() {
         alert("你的浏览器不支持Web Audio API");
         console.log(err);
     }
+    console.log(player.audioContext.sampleRate);
     player.init();
     player.setFile();
+    //player.controller();
     window.addEventListener("resize", function() {
          player.init();
     }, false);
@@ -27,7 +29,7 @@ var Player = function() {
     this.title = "",
     this.playing = 0,
     this.animation = null,
-    this.visualiseMode = "circle"
+    this.visualiseMode = "normal"
 };
 
 Player.prototype = {
@@ -37,8 +39,6 @@ Player.prototype = {
         bg.height = window.innerHeight;
 
         switch(this.visualiseMode) {
-            case "normal":
-                break;
             case "circle":
                 if(this.playing) {
                     this.context.translate(canvas.width/2, canvas.height/2);
@@ -53,6 +53,7 @@ Player.prototype = {
                     }*/
                 }
                 break;
+            default: break;
         }
 
     },
@@ -98,6 +99,7 @@ Player.prototype = {
     analyze: function(audioContext, buffer) {
         var bufferSource = audioContext.createBufferSource(),
             analyser = audioContext.createAnalyser();
+        analyser.fftSize = 4096;
         bufferSource.connect(analyser);  // 解码后的缓冲数据连接到analyser
         analyser.connect(audioContext.destination);  // 再将analyser连接到扬声器
         bufferSource.buffer = buffer;
@@ -106,7 +108,9 @@ Player.prototype = {
         }
         bufferSource.start();  // 开始播放
         this.playing = 1;
+
         this.visualise(analyser);  // 根据分析后的音频频谱信息进行绘图
+
         that = this;
         bufferSource.onended = function() {  // 播放结束
             that.playing = 0;
@@ -132,7 +136,7 @@ Player.prototype = {
         }   
     },
     visualise_normal: function(analyser, context) {
-        var width = 10,
+        var width = 5,
             gap = 5,
             num = 0,
             step = 0,  // 采样步长
@@ -142,17 +146,24 @@ Player.prototype = {
         var drawPerFrame = function() {
             analyser.getByteFrequencyData(dataArray);  // 分析频谱并将当前的频域数据返回到Uint8Array中
             context.clearRect(0, 0, canvas.width, canvas.height);
-            context.fillStyle = "#0000ff";
+            context.fillStyle = "rgba(255,255,255,0.6)";
             num = canvas.width / (width+gap);
-            step = Math.round(dataArray.length/num);
+
+            stepAfter = Math.round(200/num)
+            stepBefore = Math.round((dataArray.length*0.8-200)/num);
+
             for(var i=0; i<num; i++) {
-                value = dataArray[i*step];
-                context.fillRect(i*(width+gap)+gap, canvas.height-value, width, value);
+                context.save();
+                var valueAfter = dataArray[i*stepAfter];
+                var valueBefore = dataArray[i*stepBefore+200];
+                context.fillRect(i*(width+gap), canvas.height-valueAfter*2, width, valueAfter*2);
+                
+                context.fillStyle = "rgb(255,255,255)";
+                context.fillRect(i*(width+gap), canvas.height-valueBefore, width, valueBefore);
+                context.restore();
             }
+
             that.animation = requestAnimationFrame(drawPerFrame);  // 递归调用以不断更新每一帧的画面
-            //console.log(dataArray[875]);
-            //console.log(analyser.maxDecibels);
-            //console.log(analyser.minDecibels);
         };
         this.animation = requestAnimationFrame(drawPerFrame);
     },
@@ -161,46 +172,43 @@ Player.prototype = {
         var that = this,
             r = canvas.height/3,
             c = 2*Math.PI*r,
-            width = 3,
-            num = Math.round(c/width /2),
-            step = Math.round(frequencyArray.length/num *2),
-            width = c / num;
-            ang = 2*Math.PI / num;
+            length = frequencyArray.length,
+            num = 100,  // 柱条数目
+            ang = Math.PI / num,
+            width = c / (num*2+1);
+
+        var step = Math.round((length*0.8-200)/num);
+
         var waveArray = new Uint8Array(256),
             widthWave = canvas.width*1.0 /256;
+
         var draw = function() {
+            
             analyser.getByteFrequencyData(frequencyArray);
             context.clearRect(-canvas.width/2, -canvas.height/2, canvas.width, canvas.height);
-            context.fillStyle = "#0000ff";
-
-            for(let i=0; i<num; i++) {
-                var value = frequencyArray[i*step];
+            context.fillStyle = "rgba(255,255,255,0.6)";
+            for(let i=0; i<(num*2); i++) {
+                
                 context.save();
-                context.rotate(ang*i*2);
-                context.fillRect(0, -value/2-r-5, width, value/2+5);
+                if(i<num) {
+                    var value = frequencyArray[i];
+                    context.rotate(ang*(i+0.5));
+                    context.fillRect(-width/4, -r+value/3, width/2, width/2);  // 内环
+                    context.rotate(-ang*(i+0.5)*2);  // 镜像
+                    context.fillRect(-width/4, -r+value/3, width/2, width/2);
+                }else {
+                    var value = frequencyArray[(i-num)*step + 200];
+                    context.rotate(ang*(i-num+0.5));
+                    context.fillRect(-width/4, -value/2-r-5, width/2, value/2+5);  // 外环
+                    context.rotate(-ang*(i-num+0.5)*2);  // 镜像
+                    context.fillRect(-width/4, -value/2-r-5, width/2, value/2+5);
+                }
                 context.restore();
             }
-            context.globalCompositeOperation = "destination-over";
-            analyser.getByteTimeDomainData(waveArray);
-            context.lineWidth = 2;
-            context.strokeStyle = "rgb(255,0,0)";
-            context.beginPath();
-            for(let i=0; i<256; i++) {
-                var y = waveArray[i];
-                if(i===0) {
-                    context.moveTo(widthWave*i - canvas.width/2, y-128);
-                }else {
-                    context.lineTo(widthWave*i - canvas.width/2, y-128);
-                }
-            }
-            context.stroke();
             that.animation = requestAnimationFrame(draw);
         };
         this.animation = requestAnimationFrame(draw);
     },
-
-
-
     visualise_concentric: function(analyser, context) {
         var dataArray = new Uint8Array(analyser.frequencyBinCount);
         var num = dataArray.length,
@@ -236,9 +244,9 @@ Player.prototype = {
             for(var i=0; i<num; i++) {
                 y = dataArray[i];
                 if(i===0) {
-                    context.moveTo(x,y);
+                    context.moveTo(x,y-128);
                 }else {
-                    context.lineTo(x,y);
+                    context.lineTo(x,y-128);
                 }
                 x += width;
             }
@@ -248,7 +256,24 @@ Player.prototype = {
         this.animation = requestAnimationFrame(draw);
     },
     controller: function() {
+        var ul = document.querySelector("ul"),
+            mode = document.querySelectorAll('input[type="button"]');
+        var that = this;
+        ul.addEventListener('click', function(e) {
+            var target = e.target;
+            switch(target.id) {
+                case "normal":
+                    that.visualiseMode = "normal";
+                    break;
+                case "circle":
+                    that.visualiseMode = "circle";
+                    break;
+                case "concentric":
+                    that.visualiseMode = "concentric";
+                    break;
 
+            }
+        }, false);
     }
 
 
