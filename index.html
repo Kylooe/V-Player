@@ -6,25 +6,21 @@
   <link rel="stylesheet" type="text/css" href="./style.css">
 </head>
 <body>
-  <ul>
-    <li>
-      <input type="file" id="music">
-    </li>
-    <li>
-      <input type="file" id="image">
-    </li>
-
-    <li>
-      <input type="button" value="normal" id="normal">
-    </li>
-    <li>
-      <input type="button" value="circle" id="circle">
-    </li>
-    <li>
-      <input type="button" value="concentric" id="concentric">
-    </li>
-
-  </ul>
+  <div>
+    <p></p>
+    <button>pre</button>
+    <button>pause</button>
+    <button>next</button>
+    <input type="file" id="music" accept="audio/mp3, audio/ogg, audio/wav">
+    <input type="file" id="image" accept="image/jpg, image/jpeg, image/bmp, image/png">
+    <ul id="effect">
+      <li id="normal">normal</li>
+      <li id="circle">circle</li>
+      <li id="concentric">concentric</li>
+      <li id="ring">ring</li>
+    </ul>
+    <ul id="play-list"></ul>
+  </div>
   <canvas id="canvas"></canvas>
   <img id="bg">
   
